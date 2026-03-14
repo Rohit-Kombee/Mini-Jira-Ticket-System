@@ -1,0 +1,35 @@
+# pkg_resources (required by opentelemetry-instrumentation on Python 3.12+)
+setuptools>=65.0.0
+
+# FastAPI & server
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+
+# Database
+sqlalchemy==2.0.25
+psycopg2-binary==2.9.9
+alembic==1.13.1
+
+# Auth (bcrypt 4.0.x required: passlib expects __about__; 4.1+ removed it)
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt>=4.0,<4.1
+
+# Validation & schemas
+pydantic==2.6.1
+pydantic-settings==2.1.0
+email-validator==2.1.0.post1
+
+# Observability - OpenTelemetry
+opentelemetry-api==1.22.0
+opentelemetry-sdk==1.22.0
+opentelemetry-exporter-otlp-proto-grpc==1.22.0
+opentelemetry-instrumentation-fastapi==0.43b0
+opentelemetry-instrumentation-sqlalchemy==0.43b0
+opentelemetry-instrumentation-logging==0.43b0
+
+# Metrics
+prometheus-client==0.19.0
+
+# HTTP client for Loki (optional push)
+requests==2.31.0

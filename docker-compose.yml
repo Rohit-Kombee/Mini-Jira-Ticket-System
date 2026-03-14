@@ -1,0 +1,212 @@
+# =============================================================================
+# Hackathon 2.0 — Docker Compose & Observability Stack
+# Ref: FE & BE (Web Team) Hackathon 2.0.pdf
+# Required: Application | Database | Prometheus | Loki | Tempo | Grafana
+# =============================================================================
+# Start everything:  docker compose up
+# Build and start:   docker compose up --build
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # FRONTEND (Support Ticket UI — React + Vite)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000
+    container_name: hackathon-frontend
+    ports:
+      - "5174:80"
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------------------
+  # APPLICATION (Backend API)
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hackathon-backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/tickets
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-in-prod}
+      # Log file for Promtail → Loki
+      LOG_FILE_PATH: /var/log/app/backend.log
+      # OpenTelemetry → OTEL Collector → Tempo
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      # Anomaly injection (for observability demo — set to "true" / "0.1" to enable)
+      ENABLE_ANOMALY_DELAY: "false"
+      ANOMALY_DELAY_SECONDS: "0.5"
+      ANOMALY_ERROR_RATE: "0"
+      ENABLE_SLOW_QUERY_SIMULATION: "false"
+    volumes:
+      - app_logs:/var/log/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------------------
+  # DATABASE (PDF: Docker Requirement)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: hackathon-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tickets
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"   # Host 5433 to avoid conflict with local PostgreSQL on 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------------------
+  # PROMETHEUS (PDF: Metrics — "Collected by: Prometheus")
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: hackathon-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------------------
+  # LOKI (PDF: Logs — "Collected by: Loki")
+  # ---------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:2.9.3
+    container_name: hackathon-loki
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./config/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------------------
+  # TEMPO (PDF: Traces — "Stored in: Tempo", "Collected via: OpenTelemetry")
+  # ---------------------------------------------------------------------------
+  tempo:
+    image: grafana/tempo:2.10.2
+    container_name: hackathon-tempo
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./config/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP
+      - "4317:4317"   # OTLP gRPC (for collector)
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------------------
+  # OPENTELEMETRY COLLECTOR (PDF: Traces — "Collected via: OpenTelemetry")
+  # Receives traces from app → forwards to Tempo; optional logs to Loki
+  # ---------------------------------------------------------------------------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    container_name: hackathon-otel-collector
+    command: ["--config=/etc/otel-collector/config.yaml"]
+    volumes:
+      - ./config/otel-collector.yaml:/etc/otel-collector/config.yaml:ro
+    ports:
+      - "4318:4318"   # OTLP HTTP (gRPC 4317 used only on Docker network by backend)
+    depends_on:
+      - tempo
+      - loki
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------------------
+  # PROMTAIL (Ships application logs from Docker → Loki)
+  # PDF: Logs — "Collected by: Loki" (Promtail is the standard way to feed Loki)
+  # ---------------------------------------------------------------------------
+  promtail:
+    image: grafana/promtail:2.9.3
+    container_name: hackathon-promtail
+    command: -config.file=/etc/promtail/config.yaml
+    volumes:
+      - ./config/promtail-config.yaml:/etc/promtail/config.yaml:ro
+      - promtail_logs:/var/log/promtail
+      - app_logs:/var/log/app:ro
+    depends_on:
+      - loki
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------------------
+  # GRAFANA (PDF: "Visualized in: Grafana")
+  # Dashboards: Application Health | Database Performance | Logs | Traces
+  # ---------------------------------------------------------------------------
+  grafana:
+    # 9.5.x uses non-streaming TraceQL search by default so dashboard panels get data; 10.x can return "No data" with Tempo
+    image: grafana/grafana:9.5.3
+    container_name: hackathon-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_HTTP_PORT: 3000
+      GF_INSTALL_PLUGINS: ""
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      tempo:
+        condition: service_started
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_started
+    networks:
+      - observability
+
+# =============================================================================
+# VOLUMES (persist data across restarts)
+# =============================================================================
+volumes:
+  postgres_data:
+  prometheus_data:
+  loki_data:
+  tempo_data:
+  grafana_data:
+  promtail_logs:
+  app_logs:
+
+# =============================================================================
+# NETWORK (all services on same network for DNS resolution)
+# =============================================================================
+networks:
+  observability:
+    driver: bridge
