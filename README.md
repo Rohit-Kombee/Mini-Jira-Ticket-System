@@ -6,6 +6,18 @@ A **Mini Jira–style ticket system** with **full observability and load-tested 
 
 ---
 
+## 📹 Project Overview Video
+
+The project overview video is in this repository. Click the link below to watch it on GitHub (GitHub will open its built-in video player).
+
+**[▶ Watch Project Overview Video](Project%20Overview.mp4)**
+
+<video src="Project%20Overview.mp4" controls width="640" muted autoplay loop>
+  Your browser does not support the video tag. [Watch the video here](Project%20Overview.mp4).
+</video>
+
+---
+
 # 🚀 Load Testing Results (k6)
 
 The system was tested using **k6 load testing** against the full stack (FastAPI API + PostgreSQL + Observability stack).
