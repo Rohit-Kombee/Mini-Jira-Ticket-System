@@ -6,15 +6,11 @@ A **Mini Jira–style ticket system** with **full observability and load-tested 
 
 ---
 
-## 📹 Project Overview Video
+# 📹 Project Overview Video
 
-The project overview video is in this repository. Click the link below to watch it on GitHub (GitHub will open its built-in video player).
+▶ Watch the demo video on GitHub:
 
-**[▶ Watch Project Overview Video](Project%20Overview.mp4)**
-
-<video src="Project%20Overview.mp4" controls width="640" muted autoplay loop>
-  Your browser does not support the video tag. [Watch the video here](Project%20Overview.mp4).
-</video>
+https://github.com/Rohit-Kombee/Mini-Jira-Ticket-System/blob/master/Project%20Overview.mp4
 
 ---
 
@@ -35,7 +31,7 @@ The system was tested using **k6 load testing** against the full stack (FastAPI 
 
 ---
 
-## Performance Results
+# Performance Results
 
 | Metric | Result |
 |------|------|
@@ -50,7 +46,7 @@ The system was tested using **k6 load testing** against the full stack (FastAPI 
 
 ---
 
-## Thresholds
+# Thresholds
 
 | Threshold | Target | Result |
 |----------|--------|--------|
@@ -59,7 +55,7 @@ The system was tested using **k6 load testing** against the full stack (FastAPI 
 
 ---
 
-## Functional Checks
+# Functional Checks
 
 All functional checks passed successfully.
 
@@ -78,7 +74,7 @@ All functional checks passed successfully.
 
 ---
 
-## Observability Metrics After Load Test (Grafana)
+# Observability Metrics After Load Test (Grafana)
 
 | Metric | Value |
 |------|------|
